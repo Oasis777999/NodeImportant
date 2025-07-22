@@ -1,52 +1,45 @@
 const express = require("express");
-const Razorpay = require("razorpay");
 const cors = require("cors");
-const crypto = require("crypto");
+const User = require("./model");
 require("dotenv").config();
+require("./connect");
 
 const app = express();
 const port = 5000;
 
 app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 app.use(cors());
 
-app.post("/order", async (req, res) => {
+app.get("/", async (req, res) => {
+  const result = await User.find({});
+  res.send(result);
+});
+
+app.get("/:id", async (req, res) => {
+  const result = await User.findById(req.params.id);
+  res.status(200).json({ data: result });
+});
+
+app.post("/", async (req, res) => {
   try {
-    const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID,
-      key_secret: process.env.RAZORPAY_SECRET,
-    });
-
-    const options = req.body;
-    const order = await razorpay.orders.create(options);
-
-    if (!order) {
-      return res.status(500).send("Error");
-    }
-
-    res.json(order);
+    const result = new User(req.body); // create new user
+    await result.save(); // save to DB
+    res.status(201).json({ data: result }); // respond with success
   } catch (error) {
-    console.log(error.message);
-    res.status(500).send("Error");
+    res.status(400).json({ error: error.message }); // validation or save error
   }
 });
 
-app.post("/order/validate", async(req, res)=>{
-  const {razorpay_order_id, razorpay_payment_id, razorpay_signature}=req.body;
-  const sha = crypto.createHmac("sha256", process.env.RAZORPAY_SECRET);
-  sha.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+app.delete("/:id", async (req, res) => {
+  const result = await User.findByIdAndDelete(req.params.id);
+  res.send(result);
+});
 
-  const digest = sha.digest("hex");
-  if(digest !== razorpay_signature){
-    return res.status(400).json({msg:"Transaction is not legit"});
-  }
-  
-  res.json({
-    msg:"success",
-    orderId:razorpay_order_id,
-    paymentId:razorpay_payment_id,
-  })
-})
+app.put("/:id", async (req, res) => {
+  const result = await User.findByIdAndUpdate(req.params.id, req.body, {
+    new: true,
+  });
+  res.status(201).json({ data: result });
+});
 
-app.listen(port, ()=>console.log("Listing on port", port))
+app.listen(port, () => console.log("Listing on port", port));
