@@ -1,18 +1,52 @@
 const express = require("express");
+const Razorpay = require("razorpay");
+const cors = require("cors");
+const crypto = require("crypto");
+require("dotenv").config();
+
 const app = express();
 const port = 5000;
 
-const autoMiddelware = (req, res, next) => {
-  const token = req.headers.authrization;
+app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+app.use(cors());
 
-  if (!token || token !== "valid-token") {
-    return res.status(401).send("Un Authourized User");
+app.post("/order", async (req, res) => {
+  try {
+    const razorpay = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_SECRET,
+    });
+
+    const options = req.body;
+    const order = await razorpay.orders.create(options);
+
+    if (!order) {
+      return res.status(500).send("Error");
+    }
+
+    res.json(order);
+  } catch (error) {
+    console.log(error.message);
+    res.status(500).send("Error");
   }
-  next();
-};
-
-app.get("/", autoMiddelware, (req, res) => {
-  res.send("Application is working");
 });
 
-app.listen(port, () => console.log("application is running on port : ", port));
+app.post("/order/validate", async(req, res)=>{
+  const {razorpay_order_id, razorpay_payment_id, razorpay_signature}=req.body;
+  const sha = crypto.createHmac("sha256", process.env.RAZORPAY_SECRET);
+  sha.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+
+  const digest = sha.digest("hex");
+  if(digest !== razorpay_signature){
+    return res.status(400).json({msg:"Transaction is not legit"});
+  }
+  
+  res.json({
+    msg:"success",
+    orderId:razorpay_order_id,
+    paymentId:razorpay_payment_id,
+  })
+})
+
+app.listen(port, ()=>console.log("Listing on port", port))
