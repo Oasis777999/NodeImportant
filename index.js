@@ -1,46 +1,32 @@
 const express = require("express");
 const cors = require("cors");
-const User = require("./User");
+const dotenv = require("dotenv");
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+dotenv.config();
+
 const app = express();
-const port = 5000;
-
-require("./connect");
-
+app.use(cors());
 app.use(express.json());
-app.use(cors())
 
-// app.get("/", (req, res) => {
-//   res.send("Application is Working");
-// });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-app.get("/", async (req, res) => {
-  let result = await User.find({});
-  res.send(result);
+app.post("/api", async (req, res) => {
+  try {
+    const { message } = req.body;
+
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",   // now works on v1 API
+    });
+
+    const result = await model.generateContent(message);
+    const reply = result.response.text();
+
+    res.json({ reply });
+  } catch (error) {
+    console.error("Gemini API Error:", error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-app.post("/", async (req, res) => {
-  let result = new User(req.body);
-  await result.save();
-  res.send(result);
-});
-
-app.delete("/:id", async (req, res) => {
-  let result = await User.findByIdAndDelete(req.params.id);
-  res.send("User Deleted");
-});
-
-app.put("/:id", async (req, res) => {
-  let result = await User.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-  });
-  res.send(result);
-});
-
-app.patch("/:id", async (req, res) => {
-  let result = await User.findByIdAndUpdate(req.params.id, req.body, {
-    new: true,
-  });
-  res.send(result);
-});
-
-app.listen(port, () => console.log("Application is working"));
+app.listen(5000, () => console.log("Server running on port 5000"));
